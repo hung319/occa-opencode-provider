@@ -1,0 +1,15 @@
+{
+  "name": "occa-opencode-provider",
+  "version": "1.2.0",
+  "description": "OpenCode plugin - auto-reads occa.json with hot reload, model filtering, caching, token masking, and multi-provider support",
+  "main": "index.js",
+  "type": "module",
+  "keywords": ["opencode", "plugin", "openai", "claude", "gemini", "multi-provider"],
+  "license": "MIT",
+  "author": "hung319",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hung319/occa-opencode-provider.git"
+  },
+  "dependencies": {}
+}

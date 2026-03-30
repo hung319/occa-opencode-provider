@@ -1,0 +1,47 @@
+{
+  "settings": {
+    "cache_ttl": 1800,
+    "hot_reload": true
+  },
+  "provider": {
+    "openai": {
+      "baseurl": "https://api.openai.com/v1",
+      "key": "sk-YOUR-KEY-HERE",
+      "type": "openai"
+    },
+    "claude": {
+      "baseurl": "https://api.anthropic.com",
+      "key": "sk-ant-YOUR-KEY-HERE",
+      "type": "claude"
+    },
+    "gemini": {
+      "baseurl": "https://generativelanguage.googleapis.com/v1beta",
+      "key": "AIza-YOUR-KEY-HERE",
+      "type": "gemini"
+    },
+    "openrouter": {
+      "baseurl": "https://openrouter.ai/api/v1",
+      "key": "sk-or-YOUR-KEY-HERE",
+      "type": "openai",
+      "models": {
+        "include": ["anthropic/*", "google/*", "openai/*"]
+      }
+    },
+    "deepseek": {
+      "baseurl": "https://api.deepseek.com/v1",
+      "key": "sk-YOUR-KEY-HERE",
+      "type": "openai"
+    },
+    "groq": {
+      "baseurl": "https://api.groq.com/openai/v1",
+      "key": "gsk_YOUR-KEY-HERE",
+      "type": "openai",
+      "timeout": 10000
+    },
+    "ollama": {
+      "baseurl": "http://localhost:11434/v1",
+      "key": "ollama",
+      "type": "openai"
+    }
+  }
+}
