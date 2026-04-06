@@ -428,7 +428,7 @@ export const OccaPlugin = async (ctx) => {
 
   let currentResults = [];
 
-  async function loadProviders() {
+  async function loadProviders(forceRefresh = false) {
     const occa = readOccaConfig();
     if (!occa) {
       logError('[Plugin] Config invalid or missing — no providers registered');
@@ -457,8 +457,8 @@ export const OccaPlugin = async (ctx) => {
 
         let models = null;
 
-        // Try cache first
-        if (cacheTTL > 0) {
+        // Try cache first (skip if forceRefresh)
+        if (!forceRefresh && cacheTTL > 0) {
           models = getCachedModels(id, cacheTTL);
         }
 
@@ -501,7 +501,7 @@ export const OccaPlugin = async (ctx) => {
   const occa = readOccaConfig();
   if (occa?.settings?.hot_reload !== false) {
     startWatcher(async () => {
-      await loadProviders();
+      await loadProviders(true);
       // Notify OpenCode of config change via ctx if available
       if (ctx?.refresh) {
         try { await ctx.refresh(); } catch (_) { /* ignore */ }
@@ -514,11 +514,29 @@ export const OccaPlugin = async (ctx) => {
       log('[Hook] config() called');
       if (!config.provider) config.provider = {};
 
+      // Check if cache has expired and reload if needed
+      const occa = readOccaConfig();
+      if (occa) {
+        const cacheTTL = occa.settings?.cache_ttl ?? DEFAULT_CACHE_TTL;
+        if (cacheTTL > 0) {
+          const cache = readCache();
+          const hasExpired = currentResults.some(r => {
+            const entry = cache[r.id];
+            if (!entry) return true;
+            const age = (Date.now() - entry.timestamp) / 1000;
+            return age > cacheTTL;
+          });
+          if (hasExpired) {
+            log('[Hook] Cache expired, reloading providers...');
+            await loadProviders(true);
+          }
+        }
+      }
+
       for (const r of currentResults) {
         config.provider[r.id] = {
-          id: r.id,
-          name: r.id,
           npm: r.sdk,
+          name: r.id,
           options: {
             baseURL: r.baseurl,
             apiKey: r.key,
