@@ -86,6 +86,17 @@ Create `~/.config/opencode/occa.json`:
       "models": {
         "include": ["anthropic/*", "google/*", "openai/*"]
       }
+    },
+    "custom-api": {
+      "baseurl": "https://api.example.com/v1",
+      "key": "your-api-key",
+      "type": "openai",
+      "headers": {
+        "auth_header": {
+          "key": "X-API-Key",
+          "value": "your-api-key"
+        }
+      }
     }
   }
 }
@@ -109,6 +120,7 @@ Create `~/.config/opencode/occa.json`:
 | `type` | string | No | API type: `openai` \| `claude` \| `gemini` (default: `openai`) |
 | `timeout` | number | No | Request timeout in ms (default: `15000`) |
 | `headers` | object | No | Custom headers to include in API requests |
+| `headers.auth_header` | object | No | Custom authentication header format (e.g. `{key: "X-API-Key", value: "your-key"}`) |
 | `models.include` | string[] | No | Glob patterns — only include matching models |
 | `models.exclude` | string[] | No | Glob patterns — exclude matching models |
 

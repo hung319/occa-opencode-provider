@@ -329,18 +329,27 @@ function httpRequest(urlStr, headers = {}, timeout = DEFAULT_TIMEOUT) {
 // ── Model fetchers per API type ─────────────────────────────────────────────
 
 async function fetchOpenAIModels(baseurl, apiKey, headers, timeout) {
-  const url = baseurl.replace(/\/+$/, '') + '/models';
-  const res = await httpRequest(url, { Authorization: `Bearer ${apiKey}`, ...headers }, timeout);
-  if (!res.ok || !res.json?.data) {
-    logError(`[OpenAI] Models fetch failed (${res.status}): ${res.error || 'no data'}`);
-    return null;
-  }
-  const models = {};
-  for (const m of res.json.data) {
-    if (m.id) models[m.id] = { name: m.id };
-  }
-  log(`[OpenAI] Fetched ${Object.keys(models).length} models`);
-  return models;
+    const url = baseurl.replace(/\/+$/, '') + '/models';
+    // Allow custom auth format via auth_header field
+    const authHeaders = {};
+    if (headers.auth_header) {
+        // Use custom auth header format
+        authHeaders[headers.auth_header.key || 'Authorization'] = headers.auth_header.value;
+    } else {
+        // Default Bearer token
+        authHeaders.Authorization = `Bearer ${apiKey}`;
+    }
+    const res = await httpRequest(url, { ...authHeaders, ...headers }, timeout);
+    if (!res.ok || !res.json?.data) {
+        logError(`[OpenAI] Models fetch failed (${res.status}): ${res.error || 'no data'}`);
+        return null;
+    }
+    const models = {};
+    for (const m of res.json.data) {
+        if (m.id) models[m.id] = { name: m.id };
+    }
+    log(`[OpenAI] Fetched ${Object.keys(models).length} models`);
+    return models;
 }
 
 async function fetchClaudeModels(baseurl, apiKey, headers, timeout) {
