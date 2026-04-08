@@ -54,6 +54,8 @@ const CACHE_FILE = path.join(LOG_DIR, 'models-cache.json');
 const DEFAULT_CACHE_TTL = 1800; // 30 minutes
 const DEFAULT_TIMEOUT = 15000;  // 15 seconds
 
+const OCCA_CONFIG_PATH = process.env.OCCA_CONFIG_PATH || OCCA_CONFIG;
+
 // Map occa type → OpenCode SDK package
 const SDK_MAP = {
   openai: '@ai-sdk/openai-compatible',
@@ -189,19 +191,31 @@ function validateConfig(cfg) {
       }
     }
   }
+      if (cfg.settings.cache_ttl !== undefined && typeof cfg.settings.cache_ttl !== 'number') {
+        errors.push('"settings.cache_ttl" must be a number (seconds)');
+      }
+      if (cfg.settings.hot_reload !== undefined && typeof cfg.settings.hot_reload !== 'boolean') {
+        errors.push('"settings.hot_reload" must be a boolean');
+      }
+    }
+  }
 
   return { valid: errors.length === 0, errors };
 }
 
 // ── Config reader ───────────────────────────────────────────────────────────
 
+let configPath = OCCA_CONFIG_PATH;
+
 function readOccaConfig() {
-  if (!fs.existsSync(OCCA_CONFIG)) {
-    logError(`Config not found at ${OCCA_CONFIG}`);
+  const targetPath = configPath;
+
+  if (!fs.existsSync(targetPath)) {
+    logError(`Config not found at ${targetPath}`);
     return null;
   }
   try {
-    const raw = fs.readFileSync(OCCA_CONFIG, 'utf-8');
+    const raw = fs.readFileSync(targetPath, 'utf-8');
     const cfg = JSON.parse(raw);
 
     const validation = validateConfig(cfg);
@@ -212,7 +226,38 @@ function readOccaConfig() {
       return null;
     }
 
-    log(`[Config] Loaded ${Object.keys(cfg.provider).length} provider(s) from ${OCCA_CONFIG}`);
+    log(`[Config] Loaded ${Object.keys(cfg.provider).length} provider(s) from ${targetPath}`);
+    return cfg;
+  } catch (e) {
+    logError(`[Config] JSON parse error: ${e.message}`);
+    return null;
+  }
+}
+  return OCCA_CONFIG;
+}
+
+function readOccaConfig() {
+  const targetPath = configPath;
+
+  if (!fs.existsSync(targetPath)) {
+    logError(`Config not found at ${targetPath}`);
+    return null;
+  }
+  try {
+    const raw = fs.readFileSync(targetPath, 'utf-8');
+    const cfg = JSON.parse(raw);
+
+    configPath = resolveConfigPath(cfg.settings);
+
+    const validation = validateConfig(cfg);
+    if (!validation.valid) {
+      for (const err of validation.errors) {
+        logError(`[Config] Validation: ${err}`);
+      }
+      return null;
+    }
+
+    log(`[Config] Loaded ${Object.keys(cfg.provider).length} provider(s) from ${targetPath}`);
     return cfg;
   } catch (e) {
     logError(`[Config] JSON parse error: ${e.message}`);
@@ -407,7 +452,7 @@ function startWatcher(callback) {
 
   try {
     let debounceTimer = null;
-    watcher = fs.watch(OCCA_CONFIG, (eventType) => {
+    watcher = fs.watch(configPath, (eventType) => {
       if (eventType === 'change') {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
