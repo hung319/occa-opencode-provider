@@ -191,14 +191,6 @@ function validateConfig(cfg) {
       }
     }
   }
-      if (cfg.settings.cache_ttl !== undefined && typeof cfg.settings.cache_ttl !== 'number') {
-        errors.push('"settings.cache_ttl" must be a number (seconds)');
-      }
-      if (cfg.settings.hot_reload !== undefined && typeof cfg.settings.hot_reload !== 'boolean') {
-        errors.push('"settings.hot_reload" must be a boolean');
-      }
-    }
-  }
 
   return { valid: errors.length === 0, errors };
 }
@@ -217,37 +209,6 @@ function readOccaConfig() {
   try {
     const raw = fs.readFileSync(targetPath, 'utf-8');
     const cfg = JSON.parse(raw);
-
-    const validation = validateConfig(cfg);
-    if (!validation.valid) {
-      for (const err of validation.errors) {
-        logError(`[Config] Validation: ${err}`);
-      }
-      return null;
-    }
-
-    log(`[Config] Loaded ${Object.keys(cfg.provider).length} provider(s) from ${targetPath}`);
-    return cfg;
-  } catch (e) {
-    logError(`[Config] JSON parse error: ${e.message}`);
-    return null;
-  }
-}
-  return OCCA_CONFIG;
-}
-
-function readOccaConfig() {
-  const targetPath = configPath;
-
-  if (!fs.existsSync(targetPath)) {
-    logError(`Config not found at ${targetPath}`);
-    return null;
-  }
-  try {
-    const raw = fs.readFileSync(targetPath, 'utf-8');
-    const cfg = JSON.parse(raw);
-
-    configPath = resolveConfigPath(cfg.settings);
 
     const validation = validateConfig(cfg);
     if (!validation.valid) {
