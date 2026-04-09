@@ -2,8 +2,6 @@ name: Release to NPM
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
