@@ -1,9 +1,10 @@
 # OCCA OpenCode Provider Plugin
 
-Automatically reads `~/.config/opencode/occa.json` and registers multiple providers (OpenAI / Claude / Gemini) into OpenCode with model lists fetched from the API.
+Automatically reads `occa.json` and registers multiple providers (OpenAI / Claude / Gemini) into OpenCode with model lists fetched from the API.
 
 ## Features
 
+- **Auto-detect config** — scans current directory, then fallback to `~/.config/opencode/occa.json`
 - **Multi-provider** — one config file, unlimited providers
 - **Auto model fetch** — pulls model lists from each API on startup
 - **Config validation** — clear error messages for misconfiguration
@@ -31,7 +32,13 @@ Add to `opencode.json`:
 
 ## Configuration
 
-Create `~/.config/opencode/occa.json`:
+The plugin looks for `occa.json` in this order:
+
+1. **Environment variable**: `OCCA_CONFIG_PATH` (full path to config file)
+2. **Current directory**: `./occa.json` (where you run `opencode`)
+3. **Default location**: `~/.config/opencode/occa.json`
+
+Example: Run `opencode` in `/workspace/` with `/workspace/occa.json` — plugin auto-detects it.
 
 ### Minimal
 

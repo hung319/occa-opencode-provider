@@ -1,7 +1,7 @@
 {
   "name": "occa-opencode-provider",
-  "version": "1.2.4",
-  "description": "OpenCode plugin - auto-reads occa.json with hot reload, model filtering, caching, token masking, and multi-provider support",
+  "version": "1.2.5",
+  "description": "OpenCode plugin - auto-detects occa.json from cwd/env/home, hot reload, model filtering, caching, token masking, multi-provider",
   "main": "index.js",
   "type": "module",
   "keywords": ["opencode", "plugin", "openai", "claude", "gemini", "multi-provider"],

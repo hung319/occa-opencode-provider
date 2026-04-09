@@ -1,8 +1,12 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.0
+ * OCCA OpenCode Provider Plugin v1.2.5
  *
- * Reads ~/.config/opencode/occa.json and auto-registers
- * OpenAI / Claude / Gemini compatible providers with model lists.
+ * Auto-detects occa.json from (优先级):
+ * 1. OCCA_CONFIG_PATH 环境变量
+ * 2. ./occa.json (当前目录)
+ * 3. ~/.config/opencode/occa.json
+ *
+ * Auto-registers OpenAI / Claude / Gemini compatible providers with model lists.
  *
  * Features:
  *  - Config validation with clear error messages
@@ -54,7 +58,23 @@ const CACHE_FILE = path.join(LOG_DIR, 'models-cache.json');
 const DEFAULT_CACHE_TTL = 1800; // 30 minutes
 const DEFAULT_TIMEOUT = 15000;  // 15 seconds
 
-const OCCA_CONFIG_PATH = process.env.OCCA_CONFIG_PATH || OCCA_CONFIG;
+function findConfigFile() {
+  const envPath = process.env.OCCA_CONFIG_PATH;
+  if (envPath && fs.existsSync(envPath)) {
+    return envPath;
+  }
+  
+  const cwdConfig = path.join(process.cwd(), 'occa.json');
+  if (fs.existsSync(cwdConfig)) {
+    return cwdConfig;
+  }
+  
+  if (fs.existsSync(OCCA_CONFIG)) {
+    return OCCA_CONFIG;
+  }
+  
+  return null;
+}
 
 // Map occa type → OpenCode SDK package
 const SDK_MAP = {
@@ -197,17 +217,24 @@ function validateConfig(cfg) {
 
 // ── Config reader ───────────────────────────────────────────────────────────
 
-let configPath = OCCA_CONFIG_PATH;
+let configPath = null;
 
 function readOccaConfig() {
-  const targetPath = configPath;
+  if (!configPath) {
+    configPath = findConfigFile();
+  }
+  
+  if (!configPath) {
+    logError('Config not found. Checked: OCCA_CONFIG_PATH env, ./occa.json, ~/.config/opencode/occa.json');
+    return null;
+  }
 
-  if (!fs.existsSync(targetPath)) {
-    logError(`Config not found at ${targetPath}`);
+  if (!fs.existsSync(configPath)) {
+    logError(`Config not found at ${configPath}`);
     return null;
   }
   try {
-    const raw = fs.readFileSync(targetPath, 'utf-8');
+    const raw = fs.readFileSync(configPath, 'utf-8');
     const cfg = JSON.parse(raw);
 
     const validation = validateConfig(cfg);
@@ -218,7 +245,7 @@ function readOccaConfig() {
       return null;
     }
 
-    log(`[Config] Loaded ${Object.keys(cfg.provider).length} provider(s) from ${targetPath}`);
+    log(`[Config] Loaded ${Object.keys(cfg.provider).length} provider(s) from ${configPath}`);
     return cfg;
   } catch (e) {
     logError(`[Config] JSON parse error: ${e.message}`);
@@ -453,7 +480,7 @@ function stopWatcher() {
 // ── Main plugin export ──────────────────────────────────────────────────────
 
 export const OccaPlugin = async (ctx) => {
-  log('[Plugin] Starting OCCA Plugin v1.2.0...');
+  log('[Plugin] Starting OCCA Plugin v1.2.5...');
 
   let currentResults = [];
 
