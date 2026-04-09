@@ -252,11 +252,25 @@ function getCachedModels(providerId, ttl) {
   const age = (Date.now() - entry.timestamp) / 1000;
   if (age > ttl) {
     log(`[Cache] ${providerId} expired (${Math.round(age)}s > ${ttl}s)`);
+    delete cache[providerId];
+    writeCache(cache);
     return null;
   }
 
   log(`[Cache] ${providerId} hit (${Math.round(age)}s old, ttl=${ttl}s)`);
   return entry.models;
+}
+
+function clearCache(providerId = null) {
+  const cache = readCache();
+  if (providerId) {
+    delete cache[providerId];
+    log(`[Cache] Cleared for provider: ${providerId}`);
+  } else {
+    Object.keys(cache).forEach(k => delete cache[k]);
+    log('[Cache] Cleared all');
+  }
+  writeCache(cache);
 }
 
 function setCachedModels(providerId, models) {
@@ -535,12 +549,17 @@ export const OccaPlugin = async (ctx) => {
         const cacheTTL = occa.settings?.cache_ttl ?? DEFAULT_CACHE_TTL;
         if (cacheTTL > 0) {
           const cache = readCache();
-          const hasExpired = currentResults.some(r => {
-            const entry = cache[r.id];
-            if (!entry) return true;
+          // Check all cached entries - not just currentResults
+          const allCachedIds = Object.keys(cache);
+          let hasExpired = false;
+          for (const id of allCachedIds) {
+            const entry = cache[id];
             const age = (Date.now() - entry.timestamp) / 1000;
-            return age > cacheTTL;
-          });
+            if (age > cacheTTL) {
+              hasExpired = true;
+              break;
+            }
+          }
           if (hasExpired) {
             log('[Hook] Cache expired, reloading providers...');
             await loadProviders(true);
