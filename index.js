@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.12
+ * OCCA OpenCode Provider Plugin v1.2.13
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -362,30 +362,13 @@ function filterModels(models, filter) {
   return result;
 }
 
-// Apply model aliases - always use provider prefix for short IDs
-function applyModelAliases(models, providerBaseurl) {
+// Apply model aliases - replace / with _ for short IDs
+function applyModelAliases(models) {
   const result = { ...models };
-  
-  // Extract provider prefix from baseurl
-  let providerPrefix = '';
-  try {
-    const u = new URL(providerBaseurl);
-    const host = u.hostname;
-    if (host.includes('qwen')) providerPrefix = 'qwen';
-    else if (host.includes('groq')) providerPrefix = 'groq';
-    else if (host.includes('cerebras')) providerPrefix = 'cerebras';
-    else if (host.includes('ai.huaibao')) providerPrefix = 'ai_huaibao';
-    else if (host.includes('omniroute')) providerPrefix = 'omniroute';
-    else {
-      // Use first part of hostname as prefix
-      providerPrefix = host.split('.')[0].replace(/-/g, '_');
-    }
-  } catch (_) {}
   
   for (const [id, info] of Object.entries(models)) {
     if (id.includes('/')) {
-      const shortId = id.split('/').pop();
-      const aliasId = providerPrefix + '_' + shortId;
+      const aliasId = id.replace('/', '_');
       if (!result[aliasId]) {
         result[aliasId] = { ...info };
       }
@@ -623,7 +606,7 @@ export const OccaPlugin = async (ctx) => {
           }
         }
 
-        // Apply model aliases (short IDs)
+// Apply model aliases (short IDs)
         models = applyModelAliases(models);
 
         return { id, type, baseurl, key, sdk, models, timeout };
