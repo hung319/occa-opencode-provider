@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.9
+ * OCCA OpenCode Provider Plugin v1.2.10
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -100,6 +100,7 @@ const DEFAULT_MODELS = {
     'o3': { name: 'o3' },
     'o3-mini': { name: 'o3 Mini' },
     'o4-mini': { name: 'o4 Mini' },
+    'qwen3-coder-plus': { name: 'qwen3-coder-plus', fullId: 'qwen.aikit.club/qwen3-coder-plus' },
   },
   claude: {
     'claude-opus-4-20250514': { name: 'Claude Opus 4' },
@@ -361,6 +362,20 @@ function filterModels(models, filter) {
   return result;
 }
 
+// Apply model aliases - add short IDs for models with provider prefix
+function applyModelAliases(models) {
+  const result = { ...models };
+  for (const [id, info] of Object.entries(models)) {
+    if (id.includes('/')) {
+      const shortId = id.split('/').pop();
+      if (!result[shortId]) {
+        result[shortId] = { ...info };
+      }
+    }
+  }
+  return result;
+}
+
 // ── HTTP helpers ────────────────────────────────────────────────────────────
 
 function httpRequest(urlStr, headers = {}, timeout = DEFAULT_TIMEOUT) {
@@ -589,6 +604,9 @@ export const OccaPlugin = async (ctx) => {
             log(`[Provider] ${id} model filter: ${before} → ${after} models`);
           }
         }
+
+        // Apply model aliases (short IDs)
+        models = applyModelAliases(models);
 
         return { id, type, baseurl, key, sdk, models, timeout };
       })
