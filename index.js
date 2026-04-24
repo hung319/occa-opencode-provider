@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.14
+ * OCCA OpenCode Provider Plugin v1.2.15
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -672,15 +672,17 @@ export const OccaPlugin = async (ctx) => {
           models: r.models,
         };
         
+        // Register as "openai" first for compatibility with default provider
+        if (r.type === 'openai') {
+          const openAiConfig = { ...providerConfig, name: 'openai' };
+          config.provider['openai'] = openAiConfig;
+          log(`[Hook] Registered "openai" with ${Object.keys(r.models).length} model(s)`);
+        }
+        
+        // Also register with custom provider name
         config.provider[r.id] = providerConfig;
         log(`[Hook] Registered "${r.id}" (${r.type}) with ${Object.keys(r.models).length} model(s)`);
         log(`[Hook] SDK config: baseURL=${r.baseurl}, apiKey=${maskKey(r.key)}`);
-        
-        // Also register as "openai" if type is openai for compatibility
-        if (r.type === 'openai' && r.id !== 'openai') {
-          config.provider['openai'] = providerConfig;
-          log(`[Hook] Registered "openai" alias for "${r.id}"`);
-        }
       }
     },
   };
