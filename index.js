@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.5
+ * OCCA OpenCode Provider Plugin v1.2.6
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -16,6 +16,9 @@
  *  - Model list caching with configurable TTL
  *  - Custom headers per provider
  *  - Per-provider timeout
+ *  - Stale cache fallback on API failure
+ *  - Race condition protection with debounced writes
+ *  - Duplicate watcher event prevention
  *
  * occa.json format:
  * {
@@ -253,7 +256,10 @@ function readOccaConfig() {
   }
 }
 
-// ── Model cache ─────────────────────────────────────────────────────────────
+// ── Cache with locking ────────────────────────────────────────────────────
+
+let cacheWriteInProgress = false;
+let cacheWritePending = false;
 
 function readCache() {
   try {
@@ -267,8 +273,30 @@ function readCache() {
 function writeCache(cache) {
   try {
     ensureLogDir();
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+    // Use atomic write: write to temp file then rename
+    const tmpFile = CACHE_FILE + '.tmp';
+    fs.writeFileSync(tmpFile, JSON.stringify(cache, null, 2));
+    fs.renameSync(tmpFile, CACHE_FILE);
   } catch (_) { /* ignore */ }
+}
+
+// Debounced write to prevent race conditions
+function writeCacheDebounced(cache) {
+  if (cacheWriteInProgress) {
+    cacheWritePending = true;
+    return;
+  }
+  cacheWriteInProgress = true;
+  writeCache(cache);
+  
+  // Small delay to allow other writes to queue
+  setTimeout(() => {
+    cacheWriteInProgress = false;
+    if (cacheWritePending) {
+      cacheWritePending = false;
+      writeCacheDebounced(readCache());
+    }
+  }, 100);
 }
 
 function getCachedModels(providerId, ttl) {
@@ -447,20 +475,28 @@ const FETCH_MAP = {
 
 let watcher = null;
 let reloadCallback = null;
+let reloadDebounceTimer = null;
+let lastReloadTime = 0;
 
 function startWatcher(callback) {
   if (watcher) return;
   reloadCallback = callback;
 
   try {
-    let debounceTimer = null;
     watcher = fs.watch(configPath, (eventType) => {
       if (eventType === 'change') {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
+        const now = Date.now();
+        // Prevent duplicate reloads within 1 second
+        if (now - lastReloadTime < 1000) {
+          log('[Watcher] Debounced duplicate event');
+          return;
+        }
+        clearTimeout(reloadDebounceTimer);
+        reloadDebounceTimer = setTimeout(() => {
+          lastReloadTime = now;
           log('[Watcher] Config file changed, reloading...');
           if (reloadCallback) reloadCallback();
-        }, 500); // debounce 500ms
+        }, 500);
       }
     });
     log('[Watcher] Started watching occa.json');
@@ -512,24 +548,26 @@ export const OccaPlugin = async (ctx) => {
         log(`[Provider] ${id} type=${type} url=${baseurl} key=${maskKey(key)} timeout=${timeout}ms`);
 
         let models = null;
+        let cachedModels = null;
 
-        // Try cache first (skip if forceRefresh)
         if (!forceRefresh && cacheTTL > 0) {
-          models = getCachedModels(id, cacheTTL);
+          cachedModels = getCachedModels(id, cacheTTL);
         }
 
-        // Fetch from API if no cache
-        if (!models && baseurl && key) {
-          models = await fetcher(baseurl, key, customHeaders, timeout);
-          if (models && Object.keys(models).length > 0) {
-            setCachedModels(id, models);
+        let apiFetchSuccess = false;
+
+        if (!cachedModels && baseurl && key) {
+          const freshModels = await fetcher(baseurl, key, customHeaders, timeout);
+          if (freshModels && Object.keys(freshModels).length > 0) {
+            setCachedModels(id, freshModels);
+            models = freshModels;
+            apiFetchSuccess = true;
           }
         }
 
-        // Fallback to defaults
-        if (!models || Object.keys(models).length === 0) {
-          models = DEFAULT_MODELS[type] || DEFAULT_MODELS.openai;
-          logError(`[Provider] ${id} API fetch failed, using default models (${Object.keys(models).length})`);
+        if (!apiFetchSuccess && cachedModels) {
+          models = cachedModels;
+          log(`[Provider] ${id} using stale cache after API failure`);
         }
 
         // Apply model filter
