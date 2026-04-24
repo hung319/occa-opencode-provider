@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.6
+ * OCCA OpenCode Provider Plugin v1.2.7
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -19,6 +19,7 @@
  *  - Stale cache fallback on API failure
  *  - Race condition protection with debounced writes
  *  - Duplicate watcher event prevention
+ *  - Debug SDK initialization
  *
  * occa.json format:
  * {
@@ -633,7 +634,7 @@ export const OccaPlugin = async (ctx) => {
       }
 
       for (const r of currentResults) {
-        config.provider[r.id] = {
+        const providerConfig = {
           npm: r.sdk,
           name: r.id,
           options: {
@@ -642,7 +643,10 @@ export const OccaPlugin = async (ctx) => {
           },
           models: r.models,
         };
+        
+        config.provider[r.id] = providerConfig;
         log(`[Hook] Registered "${r.id}" (${r.type}) with ${Object.keys(r.models).length} model(s)`);
+        log(`[Hook] SDK config: baseURL=${r.baseurl}, apiKey=${maskKey(r.key)}`);
       }
     },
   };
