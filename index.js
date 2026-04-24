@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.10
+ * OCCA OpenCode Provider Plugin v1.2.11
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -363,13 +363,37 @@ function filterModels(models, filter) {
 }
 
 // Apply model aliases - add short IDs for models with provider prefix
-function applyModelAliases(models) {
+// But handle duplicates by using provider-specific naming
+function applyModelAliases(models, providerBaseurl) {
   const result = { ...models };
+  
+  // Extract provider prefix from baseurl
+  let providerPrefix = '';
+  try {
+    const u = new URL(providerBaseurl);
+    const host = u.hostname;
+    if (host.includes('qwen')) providerPrefix = 'qwen';
+    else if (host.includes('groq')) providerPrefix = 'groq';
+    else if (host.includes('cerebras')) providerPrefix = 'cerebras';
+    else if (host.includes('ai.huaibao')) providerPrefix = 'ai.huaibao';
+  } catch (_) {}
+  
   for (const [id, info] of Object.entries(models)) {
     if (id.includes('/')) {
       const shortId = id.split('/').pop();
-      if (!result[shortId]) {
-        result[shortId] = { ...info };
+      
+      // If the model from the same provider, use short ID directly
+      if (id.startsWith(providerPrefix + '.')) {
+        if (!result[shortId]) {
+          result[shortId] = { ...info };
+        }
+      } else {
+        // For models from different providers, add with provider prefix
+        const providerId = id.split('/')[0];
+        const altId = providerId.replace(/\./g, '_') + '_' + shortId;
+        if (!result[altId]) {
+          result[altId] = { ...info };
+        }
       }
     }
   }
