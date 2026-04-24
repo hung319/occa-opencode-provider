@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.8
+ * OCCA OpenCode Provider Plugin v1.2.9
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -415,9 +415,14 @@ async function fetchOpenAIModels(baseurl, apiKey, headers, timeout) {
         // Default Bearer token
         authHeaders.Authorization = `Bearer ${apiKey}`;
     }
+    log(`[OpenAI] Fetching from ${url}`);
     const res = await httpRequest(url, { ...authHeaders, ...headers }, timeout);
-    if (!res.ok || !res.json?.data) {
-        logError(`[OpenAI] Models fetch failed (${res.status}): ${res.error || 'no data'}`);
+    if (!res.ok) {
+        logError(`[OpenAI] Fetch failed: status=${res.status} error=${res.error} raw=${res.raw}`);
+        return null;
+    }
+    if (!res.json?.data) {
+        logError(`[OpenAI] No data in response: ${res.raw}`);
         return null;
     }
     const models = {};
