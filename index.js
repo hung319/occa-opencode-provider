@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.7
+ * OCCA OpenCode Provider Plugin v1.2.8
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -550,6 +550,7 @@ export const OccaPlugin = async (ctx) => {
 
         let models = null;
         let cachedModels = null;
+        let cacheUsed = false;
 
         if (!forceRefresh && cacheTTL > 0) {
           cachedModels = getCachedModels(id, cacheTTL);
@@ -558,17 +559,20 @@ export const OccaPlugin = async (ctx) => {
         let apiFetchSuccess = false;
 
         if (!cachedModels && baseurl && key) {
+          log(`[Provider] ${id} attempting fresh fetch...`);
           const freshModels = await fetcher(baseurl, key, customHeaders, timeout);
           if (freshModels && Object.keys(freshModels).length > 0) {
             setCachedModels(id, freshModels);
             models = freshModels;
             apiFetchSuccess = true;
+            log(`[Provider] ${id} fresh fetch success, ${Object.keys(freshModels).length} models`);
+          } else {
+            log(`[Provider] ${id} fresh fetch FAILED`);
           }
-        }
-
-        if (!apiFetchSuccess && cachedModels) {
+        } else if (cachedModels) {
           models = cachedModels;
-          log(`[Provider] ${id} using stale cache after API failure`);
+          cacheUsed = true;
+          log(`[Provider] ${id} using cached models (${Object.keys(cachedModels).length})`);
         }
 
         // Apply model filter
