@@ -11,5 +11,13 @@
     "type": "git",
     "url": "git+https://github.com/hung319/occa-opencode-provider.git"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "peerDependencies": {
+    "@ai-sdk/openai-compatible": "*",
+    "@ai-sdk/anthropic": "*",
+    "@ai-sdk/google": "*"
+  },
+  "scripts": {
+    "test": "node tests/*.test.js"
+  }
 }

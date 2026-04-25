@@ -44,12 +44,12 @@
  *   }
  * }
  */
-
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import https from 'https';
 import http from 'http';
+import { globMatch, filterModels, applyModelAliases, maskKey } from './src/utils.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -143,11 +143,6 @@ function logError(msg) {
 
 // ── Token masking ───────────────────────────────────────────────────────────
 
-function maskKey(key) {
-  if (!key || typeof key !== 'string') return '(empty)';
-  if (key.length <= 8) return '***';
-  return key.slice(0, 4) + '***' + key.slice(-4);
-}
 
 // ── Config validation ───────────────────────────────────────────────────────
 
@@ -413,17 +408,26 @@ function httpRequest(urlStr, headers = {}, timeout = DEFAULT_TIMEOUT) {
 
 async function fetchOpenAIModels(baseurl, apiKey, headers, timeout) {
     const url = baseurl.replace(/\/+$/, '') + '/models';
-    // Allow custom auth format via auth_header field
-    const authHeaders = {};
-    if (headers.auth_header) {
-        // Use custom auth header format
-        authHeaders[headers.auth_header.key || 'Authorization'] = headers.auth_header.value;
-    } else {
-        // Default Bearer token
-        authHeaders.Authorization = `Bearer ${apiKey}`;
+    // Build headers safely to support both standard Authorization and custom auth_header formats
+    const finalHeaders = {};
+    // Copy over any string-valued headers except the special 'auth_header' field
+    if (headers) {
+        for (const [k, v] of Object.entries(headers)) {
+            if (k === 'auth_header') continue;
+            if (typeof v === 'string') finalHeaders[k] = v;
+        }
+    }
+    // Apply custom auth_header if provided
+    if (headers && headers.auth_header) {
+        const key = headers.auth_header.key || 'Authorization';
+        finalHeaders[key] = headers.auth_header.value;
+    }
+    // Fallback to Bearer token if no explicit Authorization header present
+    if (!finalHeaders.Authorization && apiKey) {
+        finalHeaders.Authorization = `Bearer ${apiKey}`;
     }
     log(`[OpenAI] Fetching from ${url}`);
-    const res = await httpRequest(url, { ...authHeaders, ...headers }, timeout);
+    const res = await httpRequest(url, finalHeaders, timeout);
     if (!res.ok) {
         logError(`[OpenAI] Fetch failed: status=${res.status} error=${res.error} raw=${res.raw}`);
         return null;
@@ -529,7 +533,7 @@ function stopWatcher() {
 // ── Main plugin export ──────────────────────────────────────────────────────
 
 export const OccaPlugin = async (ctx) => {
-  log('[Plugin] Starting OCCA Plugin v1.2.5...');
+  log('[Plugin] Starting OCCA Plugin v1.2.23...');
 
   let currentResults = [];
 
@@ -652,29 +656,39 @@ export const OccaPlugin = async (ctx) => {
         }
       }
 
-      for (const r of currentResults) {
-        const providerConfig = {
-          npm: r.sdk,
-          name: r.id,
-          options: {
-            baseURL: r.baseurl,
-            apiKey: r.key,
-          },
-          models: r.models,
-        };
-        
-        // Register with config name
-        config.provider[r.id] = providerConfig;
-        log(`[Hook] Registered "${r.id}" (${r.type}) with ${Object.keys(r.models).length} model(s)`);
-        
-        // Map hostname so SDK can find credentials for model provider prefix
-        try {
-          const u = new URL(r.baseurl);
-          const hostname = u.hostname;
-          config.provider[hostname] = providerConfig;
-          log(`[Hook] Registered "${hostname}" for model matching`);
-        } catch (_) {}
-      }
+        for (const r of currentResults) {
+          const providerConfig = {
+            npm: r.sdk,
+            name: r.id,
+            options: {
+              baseURL: r.baseurl,
+              apiKey: r.key,
+            },
+            models: r.models,
+          };
+
+          // Avoid duplicate re-registration if identical config already exists
+          const existing = config.provider[r.id];
+          const isSame = existing
+            && existing.options
+            && existing.options.baseURL === r.baseurl
+            && existing.options.apiKey === r.key
+            && JSON.stringify(existing.models) === JSON.stringify(r.models);
+          if (!isSame) {
+            config.provider[r.id] = providerConfig;
+            log(`[Hook] Registered "${r.id}" (${r.type}) with ${Object.keys(r.models).length} model(s)`);
+          }
+
+          // Map hostname so SDK can find credentials for model provider prefix
+          try {
+            const u = new URL(r.baseurl);
+            const hostname = u.hostname;
+            if (!config.provider[hostname] || config.provider[hostname].name !== r.id) {
+              config.provider[hostname] = providerConfig;
+              log(`[Hook] Registered "${hostname}" for model matching`);
+            }
+          } catch (_) {}
+        }
     },
   };
 };
