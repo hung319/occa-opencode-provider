@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.23
+ * OCCA OpenCode Provider Plugin v1.2.24
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -533,7 +533,7 @@ function stopWatcher() {
 // ── Main plugin export ──────────────────────────────────────────────────────
 
 export const OccaPlugin = async (ctx) => {
-  log('[Plugin] Starting OCCA Plugin v1.2.23...');
+  log('[Plugin] Starting OCCA Plugin v1.2.24...');
 
   let currentResults = [];
 
