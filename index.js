@@ -1,5 +1,5 @@
 /**
- * OCCA OpenCode Provider Plugin v1.2.23
+ * OCCA OpenCode Provider Plugin v1.2.25
  *
  * Auto-detects occa.json from (优先级):
  * 1. OCCA_CONFIG_PATH 环境变量
@@ -331,38 +331,6 @@ function setCachedModels(providerId, models) {
   writeCache(cache);
 }
 
-// ── Model filtering ─────────────────────────────────────────────────────────
-
-function globMatch(pattern, str) {
-  // Convert glob pattern to regex: * → .*, ? → .
-  const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
-  return regex.test(str);
-}
-
-function filterModels(models, filter) {
-  if (!filter) return models;
-
-  const result = {};
-  for (const [id, info] of Object.entries(models)) {
-    // Include: if specified, model must match at least one pattern
-    if (filter.include && filter.include.length > 0) {
-      if (!filter.include.some(p => globMatch(p, id))) continue;
-    }
-    // Exclude: if model matches any pattern, skip
-    if (filter.exclude && filter.exclude.length > 0) {
-      if (filter.exclude.some(p => globMatch(p, id))) continue;
-    }
-    result[id] = info;
-  }
-  return result;
-}
-
-// No model aliases - keep original models only
-// This prevents SDK from looking for wrong provider
-function applyModelAliases(models) {
-  return models;
-}
-
 // ── HTTP helpers ────────────────────────────────────────────────────────────
 
 function httpRequest(urlStr, headers = {}, timeout = DEFAULT_TIMEOUT) {
@@ -438,7 +406,19 @@ async function fetchOpenAIModels(baseurl, apiKey, headers, timeout) {
     }
     const models = {};
     for (const m of res.json.data) {
-        if (m.id) models[m.id] = { name: m.id };
+        if (m.id) {
+            const { id, object, created, owned_by, permission, root, parent, ...extra } = m;
+            const info = { name: m.id };
+            if (extra.context_length) info.limit = { context: extra.context_length };
+            if (extra.max_output_tokens) {
+              if (info.limit) info.limit.output = extra.max_output_tokens;
+              else info.limit = { output: extra.max_output_tokens };
+            }
+            for (const [k, v] of Object.entries(extra)) {
+              if (k !== 'limit') info[k] = v;
+            }
+            models[m.id] = info;
+        }
     }
     log(`[OpenAI] Fetched ${Object.keys(models).length} models`);
     return models;
@@ -533,7 +513,7 @@ function stopWatcher() {
 // ── Main plugin export ──────────────────────────────────────────────────────
 
 export const OccaPlugin = async (ctx) => {
-  log('[Plugin] Starting OCCA Plugin v1.2.23...');
+  log('[Plugin] Starting OCCA Plugin v1.2.25...');
 
   let currentResults = [];
 
@@ -657,6 +637,12 @@ export const OccaPlugin = async (ctx) => {
       }
 
         for (const r of currentResults) {
+          const strippedModels = {};
+          for (const [modelId, info] of Object.entries(r.models)) {
+            const parts = modelId.split('/');
+            strippedModels[parts.length > 1 ? parts.slice(1).join('/') : modelId] = info;
+          }
+
           const providerConfig = {
             npm: r.sdk,
             name: r.id,
@@ -664,30 +650,19 @@ export const OccaPlugin = async (ctx) => {
               baseURL: r.baseurl,
               apiKey: r.key,
             },
-            models: r.models,
+            models: strippedModels,
           };
 
-          // Avoid duplicate re-registration if identical config already exists
           const existing = config.provider[r.id];
           const isSame = existing
             && existing.options
             && existing.options.baseURL === r.baseurl
             && existing.options.apiKey === r.key
-            && JSON.stringify(existing.models) === JSON.stringify(r.models);
+            && JSON.stringify(existing.models) === JSON.stringify(strippedModels);
           if (!isSame) {
             config.provider[r.id] = providerConfig;
-            log(`[Hook] Registered "${r.id}" (${r.type}) with ${Object.keys(r.models).length} model(s)`);
+            log(`[Hook] Registered "${r.id}" (${r.type}) with ${Object.keys(strippedModels).length} model(s)`);
           }
-
-          // Map hostname so SDK can find credentials for model provider prefix
-          try {
-            const u = new URL(r.baseurl);
-            const hostname = u.hostname;
-            if (!config.provider[hostname] || config.provider[hostname].name !== r.id) {
-              config.provider[hostname] = providerConfig;
-              log(`[Hook] Registered "${hostname}" for model matching`);
-            }
-          } catch (_) {}
         }
     },
   };
