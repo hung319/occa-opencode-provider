@@ -9,39 +9,39 @@
  * Auto-registers OpenAI / Claude / Gemini compatible providers with model lists.
  *
  * Features:
- *  - Config validation with clear error messages
- *  - Hot reload on config file changes
- *  - Model filtering (include/exclude patterns per provider)
- *  - Token masking in logs for security
- *  - Model list caching with configurable TTL
- *  - Custom headers per provider
- *  - Per-provider timeout
- *  - Stale cache fallback on API failure
- *  - Race condition protection with debounced writes
- *  - Duplicate watcher event prevention
- *  - Debug SDK initialization
+ * - Config validation with clear error messages
+ * - Hot reload on config file changes
+ * - Model filtering (include/exclude patterns per provider)
+ * - Token masking in logs for security
+ * - Model list caching with configurable TTL
+ * - Custom headers per provider
+ * - Per-provider timeout
+ * - Stale cache fallback on API failure
+ * - Race condition protection with debounced writes
+ * - Duplicate watcher event prevention
+ * - Debug SDK initialization
  *
  * occa.json format:
  * {
- *   "settings": {
- *     "cache_ttl": 1800,          // seconds, default 1800 (30min)
- *     "hot_reload": true          // watch config for changes
- *   },
- *   "provider": {
- *     "my-openai": {
- *       "baseurl": "https://api.openai.com/v1",
- *       "key": "sk-xxx",
- *       "type": "openai",         // openai | claude | gemini
- *       "timeout": 15000,         // ms, optional, default 15000
- *       "headers": {              // optional custom headers
- *         "X-Custom": "value"
- *       },
- *       "models": {               // optional model filter
- *         "include": ["gpt-4*", "o3*"],
- *         "exclude": ["*vision*"]
- *       }
- *     }
- *   }
+ * "settings": {
+ * "cache_ttl": 1800,          // seconds, default 1800 (30min)
+ * "hot_reload": true          // watch config for changes
+ * },
+ * "provider": {
+ * "my-openai": {
+ * "baseurl": "https://api.openai.com/v1",
+ * "key": "sk-xxx",
+ * "type": "openai",         // openai | claude | gemini
+ * "timeout": 15000,         // ms, optional, default 15000
+ * "headers": {              // optional custom headers
+ * "X-Custom": "value"
+ * },
+ * "models": {               // optional model filter
+ * "include": ["gpt-4*", "o3*"],
+ * "exclude": ["*vision*"]
+ * }
+ * }
+ * }
  * }
  */
 import fs from 'fs';
@@ -63,16 +63,7 @@ const DEFAULT_CACHE_TTL = 1800; // 30 minutes
 const DEFAULT_TIMEOUT = 15000;  // 15 seconds
 
 function findConfigFile() {
-  const envPath = process.env.OCCA_CONFIG_PATH;
-  if (envPath && fs.existsSync(envPath)) {
-    return envPath;
-  }
-  
-  const cwdConfig = path.join(process.cwd(), 'occa.json');
-  if (fs.existsSync(cwdConfig)) {
-    return cwdConfig;
-  }
-  
+  // Đã sửa: Chỉ tìm cố định trong ~/.config/opencode/occa.json
   if (fs.existsSync(OCCA_CONFIG)) {
     return OCCA_CONFIG;
   }
@@ -225,7 +216,7 @@ function readOccaConfig() {
   }
   
   if (!configPath) {
-    logError('Config not found. Checked: OCCA_CONFIG_PATH env, ./occa.json, ~/.config/opencode/occa.json');
+    logError('Config not found. Checked: ~/.config/opencode/occa.json');
     return null;
   }
 
@@ -639,8 +630,8 @@ export const OccaPlugin = async (ctx) => {
         for (const r of currentResults) {
           const strippedModels = {};
           for (const [modelId, info] of Object.entries(r.models)) {
-            const parts = modelId.split('/');
-            strippedModels[parts.length > 1 ? parts.slice(1).join('/') : modelId] = info;
+            // Đã sửa: Giữ nguyên modelId gốc để tránh lỗi 401 (ví dụ: qwen.aikit.club/qwen3-coder-plus)
+            strippedModels[modelId] = info;
           }
 
           const providerConfig = {
